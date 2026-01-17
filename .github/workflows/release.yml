@@ -2,11 +2,8 @@ name: Release
 
 on:
   push:
-    # Запуск при пуше тегов, начинающихся на v (для PyPI) 
-    # или на test- (для TestPyPI)
     tags:
       - 'v*'
-      - 'test-*'
 
 jobs:
   build-and-publish:
@@ -37,4 +34,3 @@ jobs:
 
     - name: Publish to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
-      if: startsWith(github.ref, 'refs/tags/v')
