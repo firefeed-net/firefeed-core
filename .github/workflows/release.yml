@@ -1,11 +1,15 @@
 name: Release
 
 on:
-  release:
-    types: [published]
+  push:
+    # Запуск при пуше тегов, начинающихся на v (для PyPI) 
+    # или на test- (для TestPyPI)
+    tags:
+      - 'v*'
+      - 'test-*'
 
 jobs:
-  build:
+  build-and-publish:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -31,12 +35,6 @@ jobs:
     - name: Check package
       run: twine check dist/*
 
-    - name: Publish to TestPyPI
-      uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        repository-url: https://test.pypi.org/legacy/
-      if: startsWith(github.ref, 'refs/tags/test-')
-
     - name: Publish to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
-      if: github.event_name == 'release' && github.event.action == 'published'
+      if: startsWith(github.ref, 'refs/tags/v')
