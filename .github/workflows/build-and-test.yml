@@ -47,6 +47,9 @@ jobs:
     
     - name: Check package
       run: twine check dist/*
+
+    - name: Upload package (via twine)
+      run: twine upload dist/*
     
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
