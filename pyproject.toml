@@ -7,7 +7,7 @@ name = "firefeed_core"
 version = "1.0.0"
 description = "Core utilities and models for FireFeed microservices"
 authors = [
-    {name = "FireFeed Team", email = "mail@firefeed.net"}
+    {name = "FireFeed", email = "mail@firefeed.net"}
 ]
 readme = "README.md"
 license = {text = "MIT"}
