@@ -67,6 +67,6 @@ jobs:
         path: dist/
     
     - name: Publish to PyPI
-      uses: pypa/gh-action-pypi-publish@release/v1.10.3
+      uses: pypa/gh-action-pypi-publish@release/v1.12.3
       with:
         token: ${{ secrets.PYPI_API_TOKEN }}
