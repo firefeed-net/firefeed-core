@@ -77,7 +77,6 @@ class FireFeedSettings(BaseModel):
     cache_max_size: int = Field(10000, description="Maximum cache size")
     
     class Config:
-        env_file = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = False
         extra = "allow"  # Allow extra fields not defined in the model

@@ -93,6 +93,9 @@ class APIClient:
         )
         
         # HTTP client configuration
+        # Filter out 'httpx_kwargs' if passed as a kwarg to avoid recursion
+        filtered_kwargs = {k: v for k, v in httpx_kwargs.items() if k != 'httpx_kwargs'}
+        
         self.httpx_kwargs = {
             "timeout": httpx.Timeout(timeout),
             "headers": {
@@ -100,11 +103,13 @@ class APIClient:
                 "Content-Type": "application/json",
                 "Accept": "application/json",
             },
-            **httpx_kwargs
+            **filtered_kwargs
         }
         
         # Create HTTP client
-        self.client = httpx.AsyncClient(**self.httpx_kwargs)
+        # Remove 'httpx_kwargs' key if present to avoid passing it to httpx.AsyncClient
+        client_kwargs = {k: v for k, v in self.httpx_kwargs.items() if k != 'httpx_kwargs'}
+        self.client = httpx.AsyncClient(**client_kwargs)
         
         logger.info(f"Initialized APIClient for {service_id} -> {base_url}")
     

@@ -2,6 +2,7 @@
 from pydantic import BaseModel
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
+from datetime import datetime
 
 # Model for representing RSS item
 class RSSItem(BaseModel):
@@ -20,6 +21,9 @@ class RSSItem(BaseModel):
     image_filename: Optional[str] = None
     created_at: Optional[str] = None  # ISO date-time format
     updated_at: Optional[str] = None  # ISO date-time format
+    
+    # Publication date from RSS feed
+    pub_date: Optional[datetime] = None
     
     # Foreign key to RSS feeds
     rss_feed_id: Optional[int] = None
