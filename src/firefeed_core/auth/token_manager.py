@@ -367,24 +367,33 @@ class ServiceTokenManager:
     
     def get_claims(self, token: str) -> Dict[str, Any]:
         """
-        Get all claims from token without verification.
+        Get all claims from token without signature verification.
+
+        WARNING: This method does NOT verify the token signature and should NOT
+        be used for security-sensitive operations. It is intended for debugging
+        or logging purposes only where you need to inspect token contents without
+        validating authenticity.
         
+        For production use, always use verify_token() which validates the signature,
+        expiration, issuer, and other claims.
+
         Args:
             token: JWT token string
-            
+
         Returns:
             Dictionary of token claims
-            
+
         Raises:
             AuthenticationException: If token is malformed
         """
         try:
-            # Decode without verification (not recommended for production)
+            # Decode without signature verification - FOR DEBUGGING ONLY
+            # WARNING: Do not use this for authentication/authorization decisions
             payload = jwt.decode(
                 token,
                 options={"verify_signature": False}
             )
             return payload
-        
+
         except Exception as e:
             raise AuthenticationException(f"Failed to decode token claims: {str(e)}")

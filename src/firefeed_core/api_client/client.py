@@ -7,6 +7,7 @@ retry policies, circuit breaker pattern, and rate limiting.
 
 import asyncio
 import logging
+import os
 import time
 from typing import Any, Dict, List, Optional, Union
 from urllib.parse import urljoin
@@ -79,9 +80,19 @@ class APIClient:
         self.token = token
         self.service_id = service_id
         self.timeout = timeout
+
+        # Load secret key and issuer from environment variables with validation
+        secret_key = os.environ.get("FIREFEED_JWT_SECRET_KEY")
+        issuer = os.environ.get("FIREFEED_JWT_ISSUER", "firefeed-api")
+        
+        if not secret_key:
+            raise ValueError(
+                "FIREFEED_JWT_SECRET_KEY environment variable is required. "
+                "Please set it to a secure random string."
+            )
         
         # Initialize components
-        self.token_manager = ServiceTokenManager(secret_key="", issuer="")  # Will be set by validator
+        self.token_manager = ServiceTokenManager(secret_key=secret_key, issuer=issuer)
         self.circuit_breaker = CircuitBreaker(
             failure_threshold=circuit_breaker_failure_threshold,
             timeout=circuit_breaker_timeout
@@ -129,25 +140,31 @@ class APIClient:
     def _validate_token(self) -> str:
         """
         Validate and refresh token if needed.
-        
+
         Returns:
             Valid JWT token string
-            
+
         Raises:
             AuthenticationException: If token is invalid or expired
         """
         try:
-            # For now, assume token is valid if it exists
-            # In production, you would validate JWT signature and expiry
             if not self.token:
                 raise AuthenticationException("No authentication token provided")
+
+            # Validate JWT signature, expiry, issuer using token_manager
+            decoded_token = self.token_manager.verify_token(self.token)
             
-            # TODO: Add JWT validation logic here
-            # decoded_token = self.token_manager.verify_token(self.token)
-            # Check expiry, issuer, etc.
-            
+            # Verify issuer matches expected value
+            expected_issuer = os.environ.get("FIREFEED_JWT_ISSUER", "firefeed-api")
+            if decoded_token.iss != expected_issuer:
+                raise AuthenticationException(
+                    f"Invalid token issuer: expected {expected_issuer}, got {decoded_token.iss}"
+                )
+
             return self.token
-            
+
+        except AuthenticationException:
+            raise
         except Exception as e:
             raise AuthenticationException(f"Token validation failed: {str(e)}")
     
@@ -333,14 +350,14 @@ class APIClient:
             
             except APIException as e:
                 # Don't retry on client errors (4xx)
-                if 400 <= e.status_code < 500:
+                if hasattr(e, 'status_code') and 400 <= e.status_code < 500:
                     self.circuit_breaker.record_failure()
                     raise
                 else:
-                    # Retry on server errors (5xx)
+                    # Retry on server errors (5xx) or if status_code attribute is missing
                     last_exception = e
                     self.circuit_breaker.record_failure()
-                    
+
                     if attempt < self.retry_policy.max_retries:
                         delay = self.retry_policy.get_delay(attempt)
                         logger.warning(

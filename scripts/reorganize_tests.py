@@ -132,28 +132,28 @@ class TestReorganizer:
     def create_directory_structure(self):
         """Creates the target directory structure"""
         print("Creating directory structure...")
-        
+
         def create_dirs_recursive(structure: Dict, base_path: Path):
             for key, value in structure.items():
                 dir_path = base_path / key
-                
+
                 if isinstance(value, list):
                     # Skip empty keys
                     if key == "":
                         continue
                     # Create directory and files as list
+                    # Note: __init__.py is not required for Python 3.3+ namespace packages
                     if not self.dry_run:
                         dir_path.mkdir(exist_ok=True)
-                        (dir_path / "__init__.py").touch()
                     print(f"  Created: {dir_path}")
                 elif isinstance(value, dict):
                     # Recursively create subdirectories
+                    # Note: __init__.py is not required for Python 3.3+ namespace packages
                     if not self.dry_run:
                         dir_path.mkdir(exist_ok=True)
-                        (dir_path / "__init__.py").touch()
                     print(f"  Created: {dir_path}")
                     create_dirs_recursive(value, dir_path)
-        
+
         create_dirs_recursive(self.target_structure, self.tests_dir)
     
     def move_files(self):
@@ -187,15 +187,13 @@ class TestReorganizer:
                 if not self.dry_run:
                     # Create directory if it doesn't exist
                     target_dir.mkdir(parents=True, exist_ok=True)
-                    
+
                     # Move file
                     shutil.move(str(source_file), str(target_file))
-                    
-                    # Create __init__.py if it doesn't exist
-                    init_file = target_dir / "__init__.py"
-                    if not init_file.exists():
-                        init_file.touch()
-                
+
+                    # Note: __init__.py is not required for Python 3.3+ namespace packages
+                    # Only create if explicitly needed for older Python versions
+
                 self.moved_files.append((source_file, target_file))
                 print(f"  Moved: {filename} -> {'/'.join(target_path)}/")
             else:
