@@ -160,14 +160,15 @@ class ServiceTokenManager:
             payload = jwt.decode(
                 token,
                 self.secret_key,
-                algorithms=[self.algorithm]
+                algorithms=[self.algorithm],
+                options={"require": ["iss", "sub", "iat", "exp"]}
             )
             
             # Convert to TokenPayload
             return TokenPayload(
                 iss=payload["iss"],
                 sub=payload["sub"],
-                aud=payload["aud"],
+                aud=payload.get("aud"),  # Optional - may not be present in all tokens
                 iat=payload["iat"],
                 exp=payload["exp"],
                 jti=payload.get("jti"),
