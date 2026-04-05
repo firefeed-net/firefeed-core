@@ -9,6 +9,7 @@ import asyncio
 import logging
 import os
 import time
+import uuid
 from typing import Any, Dict, List, Optional, Union
 from urllib.parse import urljoin
 
@@ -153,7 +154,7 @@ class APIClient:
 
             # Validate JWT signature, expiry, issuer using token_manager
             decoded_token = self.token_manager.verify_token(self.token)
-            
+
             # Verify issuer matches expected value
             expected_issuer = os.environ.get("FIREFEED_JWT_ISSUER", "firefeed-api")
             if decoded_token.iss != expected_issuer:
@@ -171,18 +172,18 @@ class APIClient:
     def _get_headers(self) -> Dict[str, str]:
         """
         Get request headers including authentication.
-        
+
         Returns:
             Dictionary of headers
         """
         token = self._validate_token()
-        
+
         headers = {
             "Authorization": f"Bearer {token}",
             "X-Service-ID": self.service_id,
-            "X-Request-ID": f"{self.service_id}-{int(time.time() * 1000000)}",
+            "X-Request-ID": f"{self.service_id}-{uuid.uuid4().hex[:12]}",
         }
-        
+
         return headers
     
     def _handle_response(self, response: httpx.Response) -> Any:

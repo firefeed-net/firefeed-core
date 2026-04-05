@@ -1,6 +1,7 @@
 # di_container.py - Dependency Injection Container for FireFeed Core
+import asyncio
 import logging
-from typing import Dict, Any, Type, TypeVar, Optional
+from typing import Dict, Any, Type, TypeVar, Optional, Set
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +15,8 @@ class DIContainer:
         self._services: Dict[Type, Any] = {}
         self._singletons: Dict[Type, Any] = {}
         self._factories: Dict[Type, callable] = {}
+        self._resolution_stack: Set[Type] = set()  # For circular dependency detection
+        self._lock = asyncio.Lock()  # For thread-safe operations
 
     def register(self, interface: Type[T], implementation: Type[T], singleton: bool = True) -> None:
         """Register a service implementation"""
@@ -30,62 +33,79 @@ class DIContainer:
         """Register a factory function"""
         self._factories[interface] = factory
 
-    def resolve(self, interface: Type[T]) -> T:
-        """Resolve a service instance"""
-        # Check singletons first
-        if interface in self._singletons:
-            return self._singletons[interface]
+    async def resolve(self, interface: Type[T]) -> T:
+        """Resolve a service instance (async, thread-safe)"""
+        async with self._lock:
+            # Check for circular dependencies
+            if interface in self._resolution_stack:
+                raise ValueError(
+                    f"Circular dependency detected: {interface} is already being resolved. "
+                    f"Resolution stack: {self._resolution_stack}"
+                )
 
-        # Check services
-        if interface in self._services:
-            impl_class = self._services[interface]
-            instance = self._instantiate(impl_class)
-            self._singletons[interface] = instance  # Cache as singleton
-            return instance
+            # Check singletons first
+            if interface in self._singletons:
+                return self._singletons[interface]
 
-        # Check factories
-        if interface in self._factories:
-            factory = self._factories[interface]
-            return factory()
+            # Check services
+            if interface in self._services:
+                impl_class = self._services[interface]
+                instance = await self._instantiate(impl_class)
+                self._singletons[interface] = instance  # Cache as singleton
+                return instance
 
-        raise ValueError(f"No registration found for {interface}")
+            # Check factories
+            if interface in self._factories:
+                factory = self._factories[interface]
+                return factory()
 
-    def _instantiate(self, cls: Type[T]) -> T:
+            raise ValueError(f"No registration found for {interface}")
+
+    async def _instantiate(self, impl_class: Type[T]) -> T:
         """Instantiate a class with dependency injection"""
         import inspect
 
-        # Get constructor parameters
-        init_signature = inspect.signature(cls.__init__)
-        params = {}
+        # Add to resolution stack for circular dependency detection
+        self._resolution_stack.add(impl_class)
 
-        for param_name, param in init_signature.parameters.items():
-            if param_name == 'self':
-                continue
+        try:
+            # Get constructor parameters
+            init_signature = inspect.signature(impl_class.__init__)
+            params = {}
 
-            # Skip *args and **kwargs parameters
-            if param.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
-                continue
+            for param_name, param in init_signature.parameters.items():
+                if param_name == 'self':
+                    continue
 
-            # Try to resolve parameter type
-            if param.annotation != inspect.Parameter.empty:
-                try:
-                    params[param_name] = self.resolve(param.annotation)
-                except ValueError:
-                    # If can't resolve, try to get default value
-                    if param.default != inspect.Parameter.empty:
-                        params[param_name] = param.default
-                    else:
-                        raise ValueError(f"Cannot resolve parameter {param_name} for {cls}")
-            elif param.default != inspect.Parameter.empty:
-                params[param_name] = param.default
+                # Skip *args and **kwargs parameters
+                if param.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
+                    continue
+
+                # Try to resolve parameter type
+                if param.annotation != inspect.Parameter.empty:
+                    try:
+                        params[param_name] = await self.resolve(param.annotation)
+                    except ValueError:
+                        # If can't resolve, try to get default value
+                        if param.default != inspect.Parameter.empty:
+                            params[param_name] = param.default
+                        else:
+                            raise ValueError(f"Cannot resolve parameter {param_name} for {impl_class}")
+                elif param.default != inspect.Parameter.empty:
+                    params[param_name] = param.default
+                else:
+                    raise ValueError(f"Cannot resolve parameter {param_name} for {impl_class}")
+
+            # If no parameters needed, just instantiate
+            if not params:
+                instance = impl_class()
             else:
-                raise ValueError(f"Cannot resolve parameter {param_name} for {cls}")
+                instance = impl_class(**params)
 
-        # If no parameters needed, just instantiate
-        if not params:
-            return cls()
-
-        return cls(**params)
+            return instance
+        finally:
+            # Remove from resolution stack
+            self._resolution_stack.discard(impl_class)
 
     def clear(self) -> None:
         """Clear all registrations and instances"""
@@ -98,11 +118,11 @@ class DIContainer:
 di_container = DIContainer()
 
 
-def get_service(interface: Type[T]) -> T:
+async def get_service(interface: Type[T]) -> T:
     """Get a service instance from the global DI container"""
-    return di_container.resolve(interface)
+    return await di_container.resolve(interface)
 
 
-def resolve(interface: Type[T]) -> T:
+async def resolve(interface: Type[T]) -> T:
     """Resolve a service instance from the global DI container"""
-    return di_container.resolve(interface)
+    return await di_container.resolve(interface)

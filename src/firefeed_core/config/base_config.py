@@ -11,6 +11,14 @@ from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 
 
+def _required_env(var_name: str) -> str:
+    """Get required environment variable or raise an error."""
+    value = os.getenv(var_name)
+    if not value:
+        raise ValueError(f"{var_name} environment variable is required")
+    return value
+
+
 class BaseConfig(ABC):
     """Base configuration class with common functionality"""
     
@@ -48,7 +56,7 @@ class ServiceConfig(BaseConfig):
     service_version: str = "1.0.0"
     log_level: str = "INFO"
     api_base_url: str = "http://localhost:8000"
-    jwt_secret_key: str = "your-secret-key"
+    jwt_secret_key: Optional[str] = None
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 30
     http_images_root_dir: str = ""
@@ -78,6 +86,13 @@ class ServiceConfig(BaseConfig):
             self.monitoring = MonitoringConfig.from_env()
         if not isinstance(self.security, SecurityConfig):
             self.security = SecurityConfig.from_env()
+        
+        # Validate JWT secret is set
+        if not self.jwt_secret_key or self.jwt_secret_key == "your-secret-key":
+            raise ValueError(
+                "jwt_secret_key must be set via environment variable JWT_SECRET_KEY. "
+                "Using default or empty secret keys is not allowed."
+            )
     
     @classmethod
     def from_env(cls) -> 'ServiceConfig':
@@ -94,7 +109,7 @@ class ServiceConfig(BaseConfig):
             service_version=os.getenv('SERVICE_VERSION', '1.0.0'),
             log_level=os.getenv('LOG_LEVEL', 'INFO'),
             api_base_url=os.getenv('API_BASE_URL', 'http://localhost:8000'),
-            jwt_secret_key=os.getenv('JWT_SECRET_KEY', 'your-secret-key'),
+            jwt_secret_key=_required_env('JWT_SECRET_KEY'),
             jwt_algorithm=os.getenv('JWT_ALGORITHM', 'HS256'),
             jwt_access_token_expire_minutes=int(os.getenv('JWT_ACCESS_TOKEN_EXPIRE_MINUTES', '30')),
             http_images_root_dir=os.getenv('HTTP_IMAGES_ROOT_DIR', ''),
@@ -357,7 +372,7 @@ class SecurityConfig(BaseConfig):
     @classmethod
     def from_env(cls) -> 'SecurityConfig':
         return cls(
-            jwt_secret_key=os.getenv('JWT_SECRET_KEY', 'your-secret-key'),
+            jwt_secret_key=_required_env('JWT_SECRET_KEY'),
             jwt_algorithm=os.getenv('JWT_ALGORITHM', 'HS256'),
             jwt_access_token_expire_minutes=int(os.getenv('JWT_ACCESS_TOKEN_EXPIRE_MINUTES', '30')),
             jwt_refresh_token_expire_days=int(os.getenv('JWT_REFRESH_TOKEN_EXPIRE_DAYS', '7')),

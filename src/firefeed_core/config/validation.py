@@ -385,30 +385,28 @@ def validate_security_config(config: SecurityConfig) -> List[str]:
     return errors
 
 
-def validate_all_configs() -> Dict[str, List[str]]:
+def validate_all_configs(
+    configs: Optional[Dict[str, BaseConfig]] = None
+) -> Dict[str, List[str]]:
     """
-    Validate all configuration classes and return validation results.
+    Validate configuration objects and return validation results.
     
+    This is a pure validation function that accepts config instances as parameters
+    rather than creating them from environment variables.
+
+    Args:
+        configs: Dictionary of config instances to validate. If None, returns empty dict.
+
     Returns:
         Dictionary with config class names as keys and validation errors as values
     """
+    if configs is None:
+        return {}
+    
     results = {}
-    
-    # Create sample configurations for validation
-    configs = {
-        'ServiceConfig': ServiceConfig.from_env(),
-        'RedisConfig': RedisConfig.from_env(),
-        'CacheConfig': CacheConfig.from_env(),
-        'QueueConfig': QueueConfig.from_env(),
-        'TranslationConfig': TranslationConfig.from_env(),
-        'RSSConfig': RSSConfig.from_env(),
-        'TelegramConfig': TelegramConfig.from_env(),
-        'MonitoringConfig': MonitoringConfig.from_env(),
-        'SecurityConfig': SecurityConfig.from_env(),
-    }
-    
+
     for name, config in configs.items():
         errors = validate_config(config)
         results[name] = errors
-    
+
     return results

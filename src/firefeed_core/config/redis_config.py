@@ -89,11 +89,21 @@ class RedisConfig:
         
         return config
     
-    def to_url(self) -> str:
-        """Convert RedisConfig to Redis URL"""
-        scheme = "rediss" if self.ssl else "redis"
-        password_part = f":{self.password}@" if self.password else ""
+    def to_url(self, include_password: bool = False) -> str:
+        """Convert RedisConfig to Redis URL
         
+        Args:
+            include_password: If False, password will be masked for security
+        """
+        scheme = "rediss" if self.ssl else "redis"
+        if self.password:
+            if include_password:
+                password_part = f":{self.password}@"
+            else:
+                password_part = ":*****@"
+        else:
+            password_part = ""
+
         return f"{scheme}://{password_part}{self.host}:{self.port}/{self.db}"
     
     def to_dict(self) -> Dict[str, Any]:

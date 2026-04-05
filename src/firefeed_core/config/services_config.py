@@ -2,7 +2,7 @@
 import os
 import json
 from typing import Optional, Dict, Any
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -185,7 +185,7 @@ class ServiceConfig:
     images_root_dir: str = ""
     videos_root_dir: str = ""
     http_videos_root_dir: str = ""
-    redis_config: Dict[str, Any] = None
+    redis_config: Dict[str, Any] = field(default_factory=dict)
     site_api_key: Optional[str] = None
     api_base_url: str = "http://127.0.0.1:8000/api/v1"
     user_data_ttl_seconds: int = 86400

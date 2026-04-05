@@ -6,7 +6,7 @@ Provides JWT token generation and validation for inter-service authentication.
 
 import jwt
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any, Union
 from dataclasses import dataclass
 
@@ -103,7 +103,7 @@ class ServiceTokenManager:
         exp_seconds = expiration or self.default_expiration
         
         # Calculate timestamps
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         iat = int(now.timestamp())
         exp = int((now + timedelta(seconds=exp_seconds)).timestamp())
         
@@ -374,7 +374,8 @@ class ServiceTokenManager:
         be used for security-sensitive operations. It is intended for debugging
         or logging purposes only where you need to inspect token contents without
         validating authenticity.
-        
+
+        SECURITY WARNING: This method is disabled in production environments.
         For production use, always use verify_token() which validates the signature,
         expiration, issuer, and other claims.
 
@@ -385,8 +386,17 @@ class ServiceTokenManager:
             Dictionary of token claims
 
         Raises:
-            AuthenticationException: If token is malformed
+            AuthenticationException: If token is malformed or called in production
         """
+        # Disable in production for security
+        import os
+        environment = os.getenv('ENVIRONMENT', 'development').lower()
+        if environment == 'production':
+            raise AuthenticationException(
+                "get_claims() is disabled in production environments for security reasons. "
+                "Use verify_token() instead."
+            )
+
         try:
             # Decode without signature verification - FOR DEBUGGING ONLY
             # WARNING: Do not use this for authentication/authorization decisions

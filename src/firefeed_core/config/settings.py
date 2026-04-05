@@ -92,7 +92,6 @@ class FireFeedSettings(BaseModel):
         return self.environment.lower() == "production"
     
     @property
-    @property
     def redis_url(self) -> str:
         """Generate Redis URL from configuration."""
         if self.redis_password:

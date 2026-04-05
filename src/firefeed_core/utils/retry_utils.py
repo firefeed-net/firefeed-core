@@ -308,18 +308,31 @@ def retry_on_network_errors(max_attempts: int = 3, base_delay: float = 1.0):
 def retry_on_database_errors(max_attempts: int = 3, base_delay: float = 1.0):
     """
     Decorator for retrying on database-related errors.
-    
+
     Args:
         max_attempts: Maximum number of retry attempts
         base_delay: Base delay between retries in seconds
-        
+
     Returns:
         Decorated function
-    """
-    database_exceptions = [
-        Exception,  # Generic exception for database errors
-    ]
     
+    Note:
+        This function uses generic database exceptions since no specific database
+        drivers (psycopg2, asyncpg, sqlalchemy) are declared as dependencies in
+        pyproject.toml. If you add a database driver, consider updating this function
+        to use driver-specific exceptions for more precise error handling.
+    """
+    # Use generic database and connection exceptions
+    # Since no database drivers are in pyproject.toml dependencies,
+    # we use standard Python exceptions that cover most database error scenarios
+    database_exceptions = [
+        ConnectionError,
+        TimeoutError,
+        asyncio.TimeoutError,
+        OSError,  # Covers network-level database errors
+        RuntimeError,  # Covers various database driver errors
+    ]
+
     return retry_with_backoff(
         max_attempts=max_attempts,
         base_delay=base_delay,
@@ -330,18 +343,26 @@ def retry_on_database_errors(max_attempts: int = 3, base_delay: float = 1.0):
 def retry_on_rate_limit(max_attempts: int = 5, base_delay: float = 2.0):
     """
     Decorator for retrying on rate limit errors.
-    
+
     Args:
         max_attempts: Maximum number of retry attempts
         base_delay: Base delay between retries in seconds
-        
+
     Returns:
         Decorated function
     """
-    rate_limit_exceptions = [
-        Exception,  # Should be specific rate limit exceptions
-    ]
+    # Create a specific rate limit exception class
+    class RateLimitException(Exception):
+        """Exception raised when rate limit is exceeded."""
+        pass
     
+    rate_limit_exceptions = [
+        RateLimitException,
+        ConnectionError,
+        TimeoutError,
+        asyncio.TimeoutError,
+    ]
+
     return retry_with_backoff(
         max_attempts=max_attempts,
         base_delay=base_delay,

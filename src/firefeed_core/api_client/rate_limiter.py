@@ -4,6 +4,7 @@ Rate limiter implementation for FireFeed Core
 Provides rate limiting functionality to prevent API abuse.
 """
 
+import asyncio
 import time
 from collections import deque
 from typing import Dict, Any, Optional
@@ -12,10 +13,10 @@ from typing import Dict, Any, Optional
 class RateLimiter:
     """
     Token bucket rate limiter implementation.
-    
+
     Provides rate limiting to prevent API abuse and ensure fair usage.
     """
-    
+
     def __init__(
         self,
         max_requests: int = 100,
@@ -24,7 +25,7 @@ class RateLimiter:
     ):
         """
         Initialize rate limiter.
-        
+
         Args:
             max_requests: Maximum requests per time window
             window_seconds: Time window in seconds
@@ -33,12 +34,15 @@ class RateLimiter:
         self.max_requests = max_requests
         self.window_seconds = window_seconds
         self.burst_size = burst_size or max_requests
-        
+
         # Track request timestamps
         self.request_times = deque()
         self.total_requests = 0
         self.blocked_requests = 0
         self.last_request_time = None
+        
+        # Lock for thread safety
+        self._lock = asyncio.Lock()
     
     def allow_request(self) -> bool:
         """
@@ -64,7 +68,7 @@ class RateLimiter:
     def record_request(self) -> bool:
         """
         Record a request and check if it's allowed.
-        
+
         Returns:
             True if request was recorded (allowed), False if rate limited
         """
@@ -74,8 +78,35 @@ class RateLimiter:
             self.total_requests += 1
             self.last_request_time = current_time
             return True
-        
+
         return False
+
+    async def try_record_request(self) -> bool:
+        """
+        Atomically check if request is allowed and record it.
+        
+        This method is thread-safe and prevents race conditions.
+
+        Returns:
+            True if request was allowed and recorded, False otherwise
+        """
+        async with self._lock:
+            current_time = time.time()
+            
+            # Remove old requests outside the time window
+            while self.request_times and current_time - self.request_times[0] > self.window_seconds:
+                self.request_times.popleft()
+            
+            # Check if we're under the rate limit
+            if len(self.request_times) < self.max_requests:
+                self.request_times.append(current_time)
+                self.total_requests += 1
+                self.last_request_time = current_time
+                return True
+            
+            # Rate limit exceeded
+            self.blocked_requests += 1
+            return False
     
     def get_retry_after(self) -> Optional[int]:
         """

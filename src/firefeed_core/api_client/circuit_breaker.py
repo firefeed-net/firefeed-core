@@ -4,6 +4,7 @@ Circuit Breaker implementation for FireFeed Core
 Provides fault tolerance by preventing requests to failing services.
 """
 
+import asyncio
 import time
 from enum import Enum
 from typing import Dict, Any
@@ -57,6 +58,9 @@ class CircuitBreaker:
         self.last_failure_time = None
         self.last_success_time = None
         self.last_state_change = time.time()
+        
+        # Lock for thread-safe state transitions
+        self._lock = asyncio.Lock()
     
     def allow_request(self) -> bool:
         """
@@ -104,7 +108,12 @@ class CircuitBreaker:
             # Don't decrement failure_count on successes in CLOSED state
             # This prevents the circuit from staying closed when there are intermittent failures
             pass
-    
+
+    async def async_record_success(self):
+        """Thread-safe version of record_success."""
+        async with self._lock:
+            self.record_success()
+
     def record_failure(self):
         """Record failed request."""
         current_time = time.time()
@@ -121,6 +130,11 @@ class CircuitBreaker:
             self.state = CircuitState.OPEN
             self.half_open_request_count = 0
             self.last_state_change = current_time
+
+    async def async_record_failure(self):
+        """Thread-safe version of record_failure."""
+        async with self._lock:
+            self.record_failure()
     
     def get_stats(self) -> Dict[str, Any]:
         """

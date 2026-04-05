@@ -157,12 +157,12 @@ class TestReorganizer:
         create_dirs_recursive(self.target_structure, self.tests_dir)
     
     def move_files(self):
-        """Moves files to corresponding directories"""
+        """Moves files to corresponding directories with atomic operations"""
         print("Moving files to new structure...")
-        
+
         # Flat list of all files to move
         files_to_move = []
-        
+
         def collect_files(structure: Dict, current_path: List[str] = []):
             for key, value in structure.items():
                 if isinstance(value, list):
@@ -175,29 +175,45 @@ class TestReorganizer:
                             files_to_move.append((filename, current_path + [key]))
                 elif isinstance(value, dict):
                     collect_files(value, current_path + [key])
-        
+
         collect_files(self.target_structure)
-        
+
+        # Phase 1: Copy all files to new locations first (atomic preparation)
+        copied_files = []
         for filename, target_path in files_to_move:
             source_file = self.tests_dir / filename
             target_dir = self.tests_dir / Path(*target_path)
             target_file = target_dir / filename
-            
+
             if source_file.exists():
                 if not self.dry_run:
                     # Create directory if it doesn't exist
                     target_dir.mkdir(parents=True, exist_ok=True)
 
-                    # Move file
-                    shutil.move(str(source_file), str(target_file))
+                    # Copy file instead of moving (atomic operation)
+                    shutil.copy2(str(source_file), str(target_file))
+                    copied_files.append((source_file, target_file))
 
                     # Note: __init__.py is not required for Python 3.3+ namespace packages
                     # Only create if explicitly needed for older Python versions
 
                 self.moved_files.append((source_file, target_file))
-                print(f"  Moved: {filename} -> {'/'.join(target_path)}/")
+                print(f"  Copied: {filename} -> {'/'.join(target_path)}/")
             else:
                 print(f"  WARNING: {filename} not found in tests directory")
+        
+        # Phase 2: Verify all copies succeeded before deleting originals
+        if not self.dry_run and copied_files:
+            all_copied = all(target.exists() for _, target in copied_files)
+            if not all_copied:
+                print("  ERROR: Not all files were copied successfully. Aborting to prevent data loss.")
+                return
+        
+        # Phase 3: Delete originals only after successful copies (atomic completion)
+        if not self.dry_run:
+            for source_file, target_file in copied_files:
+                if source_file.exists() and target_file.exists():
+                    source_file.unlink()
     
     def update_imports(self):
         """Updates imports in moved files"""

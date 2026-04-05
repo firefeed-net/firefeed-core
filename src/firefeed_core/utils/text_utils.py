@@ -417,7 +417,8 @@ def extract_mentions(text: str) -> List[str]:
     if not text:
         return []
     
-    mention_pattern = r'@([a-zA-Z0-9_]+)'
+    # Use word boundary to match mentions at start of text or after whitespace/punctuation
+    mention_pattern = r'(?:^|(?<=\s)|(?<=[^\w@]))@([a-zA-Z0-9_]+)'
     mentions = re.findall(mention_pattern, text)
     
     # Remove duplicates while preserving order

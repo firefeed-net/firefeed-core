@@ -190,34 +190,43 @@ async def async_wait_for_condition(
 async def async_race(*coroutines: Coroutine, timeout: Optional[float] = None) -> Any:
     """
     Race multiple coroutines and return the result of the first one to complete.
-    
+
     Args:
         *coroutines: Coroutines to race
         timeout: Optional timeout in seconds
-        
+
     Returns:
         Result of the first completed coroutine
-        
+
     Raises:
         asyncio.TimeoutError: If timeout is reached
     """
+    if not coroutines:
+        raise ValueError("At least one coroutine is required")
+
     if timeout:
-        return await asyncio.wait_for(
-            asyncio.shield(asyncio.gather(*coroutines, return_exceptions=True)),
-            timeout=timeout
-        )
+        try:
+            done, pending = await asyncio.wait_for(
+                asyncio.wait(coroutines, return_when=asyncio.FIRST_COMPLETED),
+                timeout=timeout
+            )
+        except asyncio.TimeoutError:
+            # Cancel all pending tasks on timeout
+            for task in pending:
+                task.cancel()
+            raise
     else:
         done, pending = await asyncio.wait(
             coroutines,
             return_when=asyncio.FIRST_COMPLETED
         )
-        
-        # Cancel remaining tasks
-        for task in pending:
-            task.cancel()
-        
-        # Return result of first completed task
-        return done.pop().result()
+
+    # Cancel remaining tasks
+    for task in pending:
+        task.cancel()
+
+    # Return result of first completed task
+    return done.pop().result()
 
 
 async def async_throttle(
@@ -243,26 +252,74 @@ async def async_throttle(
     return result
 
 
-async def async_debounce(
-    func: Callable,
-    *args,
-    delay: float = 1.0,
-    **kwargs
-) -> Any:
+class DebounceHandle:
+    """Handle for debounced function calls"""
+    def __init__(self):
+        self._task: Optional[asyncio.Task] = None
+        self._call_count = 0
+        self._result: Any = None
+        self._done_event = asyncio.Event()
+
+
+def async_debounce(func: Callable, delay: float = 1.0) -> Callable:
     """
-    Debounce function calls by delaying execution.
+    Decorator that debounces async function calls.
     
+    Only the last call within the delay window will be executed.
+    Previous pending calls are cancelled when a new call is made.
+    
+    This returns a debounced wrapper that can be called multiple times,
+    but only the final call (after no new calls for `delay` seconds) will execute.
+
     Args:
-        func: Function to call
-        *args: Function arguments
-        delay: Delay in seconds
-        **kwargs: Function keyword arguments
-        
+        func: Function to debounce
+        delay: Delay in seconds after last call before executing
+
     Returns:
-        Function result
+        Debounced function that returns a Future
+        
+    Example:
+        debounced_fetch = async_debounce(fetch_data, delay=1.0)
+        # Multiple calls will cancel previous pending executions
+        result = await debounced_fetch(url)
     """
-    await asyncio.sleep(delay)
-    return await func(*args, **kwargs)
+    handle = DebounceHandle()
+    
+    async def debounced_wrapper(*args, **kwargs):
+        handle._call_count += 1
+        call_id = handle._call_count
+        
+        # Cancel previous pending task
+        if handle._task and not handle._task.done():
+            handle._task.cancel()
+        
+        async def execute():
+            try:
+                await asyncio.sleep(delay)
+                # Only execute if this is still the latest call
+                if handle._call_count == call_id:
+                    handle._result = await func(*args, **kwargs)
+            except asyncio.CancelledError:
+                # Task was cancelled by a newer call, which is expected
+                pass
+            finally:
+                handle._done_event.set()
+        
+        # Reset done event for new call
+        handle._done_event.clear()
+        handle._task = asyncio.create_task(execute())
+        
+        # Wait for execution to complete
+        await handle._done_event.wait()
+        
+        # Return result if this was the latest call
+        if handle._call_count == call_id:
+            return handle._result
+        
+        # If a newer call was made, return None or raise
+        raise asyncio.CancelledError("Debounced call was superseded by a newer call")
+    
+    return debounced_wrapper
 
 
 class AsyncQueue:

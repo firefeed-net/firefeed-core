@@ -13,24 +13,60 @@ import os
 
 logger = logging.getLogger(__name__)
 
+# Maximum allowed image dimensions to prevent decompression bombs
+MAX_IMAGE_WIDTH = 10000
+MAX_IMAGE_HEIGHT = 10000
+MAX_IMAGE_PIXELS = 50_000_000  # 50 megapixels
+
+
+def _validate_image_data(image: Image.Image) -> None:
+    """
+    Validate image data to prevent decompression bombs and other issues.
+    
+    Args:
+        image: PIL Image object
+        
+    Raises:
+        ValueError: If image exceeds safety limits
+    """
+    width, height = image.size
+    
+    # Check dimensions
+    if width > MAX_IMAGE_WIDTH or height > MAX_IMAGE_HEIGHT:
+        raise ValueError(
+            f"Image dimensions ({width}x{height}) exceed maximum "
+            f"allowed size ({MAX_IMAGE_WIDTH}x{MAX_IMAGE_HEIGHT})"
+        )
+    
+    # Check total pixels
+    total_pixels = width * height
+    if total_pixels > MAX_IMAGE_PIXELS:
+        raise ValueError(
+            f"Image has too many pixels ({total_pixels}) exceeding maximum "
+            f"allowed ({MAX_IMAGE_PIXELS})"
+        )
+
 
 def resize_image(image_data: bytes, max_width: int = 800, max_height: int = 600, 
                 quality: int = 85) -> bytes:
     """
     Resize image to fit within specified dimensions while maintaining aspect ratio.
-    
+
     Args:
         image_data: Raw image bytes
         max_width: Maximum width in pixels
         max_height: Maximum height in pixels
         quality: JPEG quality (1-100)
-        
+
     Returns:
         Resized image bytes
     """
     try:
         # Open image
         image = Image.open(io.BytesIO(image_data))
+        
+        # Validate image data to prevent decompression bombs
+        _validate_image_data(image)
         
         # Handle EXIF orientation
         image = _fix_orientation(image)
