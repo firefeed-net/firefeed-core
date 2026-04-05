@@ -725,7 +725,8 @@ class TranslationRequest(BaseModel):
 # Translation Response Model
 class TranslationResponse(BaseModel):
     """Translation response model."""
-    
+    model_config = {"protected_namespaces": (), "from_attributes": True}
+
     original_text: str
     translated_text: str
     source_language: str
@@ -733,9 +734,6 @@ class TranslationResponse(BaseModel):
     model_used: Optional[str] = None
     confidence: Optional[float] = None
     processing_time: Optional[float] = None
-    
-    class Config:
-        from_attributes = True
 
 # Duplicate Detection Request Model
 class DuplicateDetectionRequest(BaseModel):
