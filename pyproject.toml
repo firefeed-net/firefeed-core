@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "firefeed_core"
-version = "1.0.5"
+version = "1.0.6"
 description = "Core utilities and models for FireFeed microservices"
 authors = [
     {name = "FireFeed", email = "mail@firefeed.net"}
